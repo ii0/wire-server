@@ -20,8 +20,10 @@ import Data.String
 import Data.String.Conversions
 import GHC.Stack
 import Lens.Micro
-import Network.HTTP.Types
+import Network.HTTP.Types as HTTP
 import Network.Wai
+import SAML2.WebSSO
+import Spar.Types
 import Text.XML.Util (parseURI')
 import URI.ByteString
 import Util.Options
@@ -46,11 +48,17 @@ withMockIdP app go = do
 
 -- test applications
 
-serveMetaAndResp :: HasCallStack => FilePath -> Status -> Application
+serveMetaAndResp :: HasCallStack => FilePath -> HTTP.Status -> Application
 serveMetaAndResp metafile respstatus req cont = case pathInfo req of
   ["meta"] -> cont . responseLBS status200 [] =<< LBS.readFile ("test-integration/resources/" <> metafile)
   ["resp"] -> cont $ responseLBS respstatus [] ""
   bad      -> error $ show bad
+
+
+-- pure functions in lieu of a mock idp (faster & easier for testing)
+
+mkAuthnResponse :: HasCallStack => IdP -> AuthnRequest -> Bool -> AuthnResponse
+mkAuthnResponse _idp _authnreq _grantaccess = undefined
 
 
 -- auxiliaries

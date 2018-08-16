@@ -37,6 +37,8 @@ module Util
   , sampleIdP
   , samplePublicKey1
   , samplePublicKey2
+  , negotiateAuthnRequest
+  , submitAuthnResponse
   , responseJSON
   , callAuthnReqPrecheck'
   , callAuthnReq, callAuthnReq'
@@ -71,6 +73,7 @@ import Data.UUID.V4 as UUID (nextRandom)
 import GHC.Stack (HasCallStack)
 import Lens.Micro
 import Prelude hiding (head)
+import SAML2.WebSSO.Config
 import Spar.API ()
 import Spar.Options as Options
 import Spar.Run
@@ -308,7 +311,7 @@ shouldRespondWith action proper = do
 -- envit :: Example (r -> m a) => String -> ReaderT r m a -> SpecWith (Arg (r -> m a))
 -- envit msg action = it msg $ \env -> action `runReaderT` env
 
-call :: Http a -> ReaderT TestEnv IO a
+call :: (MonadIO m, MonadReader TestEnv m) => Http a -> m a
 call req = ask >>= \env -> liftIO $ runHttpT (env ^. teMgr) req
 
 ping :: (Request -> Request) -> Http ()
@@ -317,10 +320,15 @@ ping req = void . get $ req . path "/i/status" . expect2xx
 
 createTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (UserId, TeamId, SAML.IdPId)
 createTestIdP = do
+  (u, t, i) <- createTestIdP'
+  pure (u, t, i ^. SAML.idpId)
+
+createTestIdP' :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (UserId, TeamId, IdP)
+createTestIdP' = do
   env <- ask
   liftIO . runHttpT (env ^. teMgr) $ do
     (uid, tid) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-    (uid, tid,) . (^. SAML.idpId) <$> callIdpCreate (env ^. teSpar) (Just uid) sampleIdP
+    (uid, tid,) <$> callIdpCreate (env ^. teSpar) (Just uid) sampleIdP
 
 -- TODO: sampleIdP must be the data for our MockIdP
 -- TODO add 'Chan's for optionally diverging from the happy path (for testing validation)
@@ -338,6 +346,32 @@ samplePublicKey1 = either (error . show) id $ SAML.parseKeyInfo "<KeyInfo xmlns=
 
 samplePublicKey2 :: X509.SignedCertificate
 samplePublicKey2 = either (error . show) id $ SAML.parseKeyInfo "<ds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\"><ds:X509Data><ds:X509Certificate>MIIDpDCCAoygAwIBAgIGAWOMMryDMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEGA1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwET2t0YTEUMBIGA1UECwwLU1NPUHJvdmlkZXIxEzARBgNVBAMMCmRldi02MDc2NDgxHDAaBgkqhkiG9w0BCQEWDWluZm9Ab2t0YS5jb20wHhcNMTgwNTIzMDg1MTA1WhcNMjgwNTIzMDg1MjA1WjCBkjELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xDTALBgNVBAoMBE9rdGExFDASBgNVBAsMC1NTT1Byb3ZpZGVyMRMwEQYDVQQDDApkZXYtNjA3NjQ4MRwwGgYJKoZIhvcNAQkBFg1pbmZvQG9rdGEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2HkpOuMhVFUCptrVB/Zm36cuFM+YMQjKdtqEoBJDLbtSbb7uFuvm5rMJ+1VSK5GKAM/Bec5WXTE2WMkifK5JaGOLS7q8+pgiWmqKE3KHMUmLAioe/1jzHkCobxis0FIVhyarRY97w0VMbDGzhPiU7pEopYpicJBzRL2UrzR+PebGgllvnaPzlg8ePtr9/xMv0QTJlYEyCctO4vT5Qa5Xlfek3Ox5yMJM1JPXzn7yuJN5R/Nf8jFprsdBSxNMzkcTRFGy8as2GCt/Xh9H+ef4CxSgRK5UXcUCrb5YMnBehEp2YiuWtw8QsGRR8elgnF3Uw9J2xEDkZIhurPy8OYmGNQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQA7kxxg2aVjo7Oml83bUWk4UtaQKYMEY74mygG/JV09g1DVMAPAyjaaMFamDSjortKarMQ3ET5tj2DggQBsWQNzsr3iZkmijab8JLwzA2+I1q63S68OaW5uaR5iMR8zZCTh/fWWYqa1AP64XeGHp+RLGfbp/eToNfkQWu7fH2QtDMOeLe5VmIV9pOFHnySszoR/epMd3sdDLVgmz4qbrMTBWD+5rxWdYS2glmRXl7IIQHrdBTRMll7S6ks5prqKFTwfPvZVrTnzD83a39wl2jBJhOQLjmSfSwP9H0YFNb/NRaDbSDS7BPuAlotZsaPZIN95tu+t9wmFwdxcVG/9q/Vu</ds:X509Certificate></ds:X509Data></ds:KeyInfo>"
+
+
+negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
+                      => m (IdP, SAML.AuthnRequest)
+negotiateAuthnRequest = do
+  env <- ask
+  (_, _, idp) <- createTestIdP'
+  resp :: ResponseLBS
+    <- call $ get
+           ( (env ^. teSpar)
+           . path ("/sso/initiate-login/" <> (cs . UUID.toText . fromIdPId . (^. SAML.idpId) $ idp))
+           . expect2xx
+           )
+  (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp
+  pure (idp, authnreq)
+
+
+submitAuthnResponse :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
+                    => SAML.AuthnResponse -> m ResponseLBS
+submitAuthnResponse authnresp = do
+  env <- ask
+  call $ post
+    ( (env ^. teSpar)
+    . path "/sso/finalize-login"
+    . (lbytes . cs . SAML.encode $ authnresp)
+    )
 
 
 -- TODO: move this to /lib/bilge?

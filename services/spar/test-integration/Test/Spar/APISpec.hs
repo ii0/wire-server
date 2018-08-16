@@ -98,15 +98,19 @@ spec = do
                                   , "<input name=\"SAMLRequest\" type=\"hidden\" "
                                   ])
 
-    describe "/sso/finalize-login" $ do  -- TODO: either use workingIdP or mock one locally.  the
-                                         -- latter is faster to run, but we need the former anyway,
-                                         -- so we might as well rely on that.
+    describe "/sso/finalize-login" $ do
       context "access denied" $ do
-        it "responds with 'forbidden'" $ do
-          pending
+        it "responds with a very peculiar 'forbidden' HTTP response" $ do
+          authnresp <- (\(idp, req) -> mkAuthnResponse idp req True) <$> negotiateAuthnRequest
+          resp  <- submitAuthnResponse authnresp
+          liftIO $ do
+            statusCode resp
+              `shouldBe` 200
+            responseBody resp
+              `shouldBe` Just ""
 
       context "access granted" $ do
-        it "responds with redirect to app" $ do
+        it "responds with a very peculiar 'allowed' HTTP response" $ do
           pending
 
         context "unknown user" $ do
