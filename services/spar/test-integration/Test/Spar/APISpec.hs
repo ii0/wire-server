@@ -290,7 +290,7 @@ spec = do
 
       context "pubkey in IdPConfig does not match the one provided in metadata url" $ do
         it "rejects" $ createIdpMockErr
-          (nidpPublicKey .~ samplePublicKey2)
+          (nidpPublicKey .~ sampleIdPPubkeyWrong)
           "meta-good-sig.xml"
           HTTP.status200
 
