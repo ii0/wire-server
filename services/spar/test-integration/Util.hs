@@ -35,9 +35,9 @@ module Util
   , ping
   , createTestIdP
   , sampleIdP
-  , sampleIdPPubkey
+  , sampleIdPCert
   , sampleIdPPrivkey
-  , sampleIdPPubkeyWrong
+  , sampleIdPCertWrong
   , negotiateAuthnRequest
   , submitAuthnResponse
   , responseJSON
@@ -83,6 +83,7 @@ import System.Random (randomRIO)
 import Test.Hspec hiding (it, xit, pending, pendingWith)
 import URI.ByteString
 import URI.ByteString.QQ
+import Util.Credentials
 import Util.MockIdP
 import Util.Options
 import Util.Types
@@ -90,16 +91,13 @@ import Util.Types
 import qualified Brig.Types.Activation as Brig
 import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
-import qualified Crypto.PubKey.RSA.Types as RSA
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
-import qualified Data.X509 as X509
 import qualified Galley.Types.Teams as Galley
 import qualified SAML2.WebSSO as SAML
 import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
-import qualified Text.XML.DSig as SAML
 import qualified Text.XML.Util as SAML
 
 
@@ -332,9 +330,6 @@ createTestIdP' = do
     (uid, tid) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
     (uid, tid,) <$> callIdpCreate (env ^. teSpar) (Just uid) sampleIdP
 
--- TODO: sampleIdP must be the data for our MockIdP
--- TODO add 'Chan's for optionally diverging from the happy path (for testing validation)
-
 sampleIdP :: HasCallStack => NewIdP
 sampleIdP = NewIdP
   { _nidpMetadata        = [uri|http://idp.net/meta|]
@@ -342,17 +337,6 @@ sampleIdP = NewIdP
   , _nidpRequestUri      = [uri|http://idp.net/sso/request|]
   , _nidpPublicKey       = sampleIdPCert
   }
-
-sampleIdPPrivkey :: SignPrivCreds
-sampleIdPCert :: X509.SignedCertificate
-(_, sampleIdPPrivkey, sampleIdPCert) =
-  ( either (error . show) id $ SAML.parseKeyInfo "<KeyInfo xmlns=\"http://www.w3.org/2000/09/xmldsig#\"><X509Data><X509Certificate>MIIDBTCCAe2gAwIBAgIQev76BWqjWZxChmKkGqoAfDANBgkqhkiG9w0BAQsFADAtMSswKQYDVQQDEyJhY2NvdW50cy5hY2Nlc3Njb250cm9sLndpbmRvd3MubmV0MB4XDTE4MDIxODAwMDAwMFoXDTIwMDIxOTAwMDAwMFowLTErMCkGA1UEAxMiYWNjb3VudHMuYWNjZXNzY29udHJvbC53aW5kb3dzLm5ldDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMgmGiRfLh6Fdi99XI2VA3XKHStWNRLEy5Aw/gxFxchnh2kPdk/bejFOs2swcx7yUWqxujjCNRsLBcWfaKUlTnrkY7i9x9noZlMrijgJy/Lk+HH5HX24PQCDf+twjnHHxZ9G6/8VLM2e5ZBeZm+t7M3vhuumEHG3UwloLF6cUeuPdW+exnOB1U1fHBIFOG8ns4SSIoq6zw5rdt0CSI6+l7b1DEjVvPLtJF+zyjlJ1Qp7NgBvAwdiPiRMU4l8IRVbuSVKoKYJoyJ4L3eXsjczoBSTJ6VjV2mygz96DC70MY3avccFrk7tCEC6ZlMRBfY1XPLyldT7tsR3EuzjecSa1M8CAwEAAaMhMB8wHQYDVR0OBBYEFIks1srixjpSLXeiR8zES5cTY6fBMA0GCSqGSIb3DQEBCwUAA4IBAQCKthfK4C31DMuDyQZVS3F7+4Evld3hjiwqu2uGDK+qFZas/D/eDunxsFpiwqC01RIMFFN8yvmMjHphLHiBHWxcBTS+tm7AhmAvWMdxO5lzJLS+UWAyPF5ICROe8Mu9iNJiO5JlCo0Wpui9RbB1C81Xhax1gWHK245ESL6k7YWvyMYWrGqr1NuQcNS0B/AIT1Nsj1WY7efMJQOmnMHkPUTWryVZlthijYyd7P2Gz6rY5a81DAFqhDNJl2pGIAE6HWtSzeUEh3jCsHEkoglKfm4VrGJEuXcALmfCMbdfTvtu4rlsaP2hQad+MG/KJFlenoTK34EMHeBPDCpqNDz8UVNk</X509Certificate></X509Data></KeyInfo>"
-  , _
-  )
-
-sampleIdPCertWrong :: X509.SignedCertificate
-sampleIdPCertWrong = either (error . show) id $ SAML.parseKeyInfo "<ds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\"><ds:X509Data><ds:X509Certificate>MIIDpDCCAoygAwIBAgIGAWOMMryDMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEGA1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwET2t0YTEUMBIGA1UECwwLU1NPUHJvdmlkZXIxEzARBgNVBAMMCmRldi02MDc2NDgxHDAaBgkqhkiG9w0BCQEWDWluZm9Ab2t0YS5jb20wHhcNMTgwNTIzMDg1MTA1WhcNMjgwNTIzMDg1MjA1WjCBkjELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xDTALBgNVBAoMBE9rdGExFDASBgNVBAsMC1NTT1Byb3ZpZGVyMRMwEQYDVQQDDApkZXYtNjA3NjQ4MRwwGgYJKoZIhvcNAQkBFg1pbmZvQG9rdGEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2HkpOuMhVFUCptrVB/Zm36cuFM+YMQjKdtqEoBJDLbtSbb7uFuvm5rMJ+1VSK5GKAM/Bec5WXTE2WMkifK5JaGOLS7q8+pgiWmqKE3KHMUmLAioe/1jzHkCobxis0FIVhyarRY97w0VMbDGzhPiU7pEopYpicJBzRL2UrzR+PebGgllvnaPzlg8ePtr9/xMv0QTJlYEyCctO4vT5Qa5Xlfek3Ox5yMJM1JPXzn7yuJN5R/Nf8jFprsdBSxNMzkcTRFGy8as2GCt/Xh9H+ef4CxSgRK5UXcUCrb5YMnBehEp2YiuWtw8QsGRR8elgnF3Uw9J2xEDkZIhurPy8OYmGNQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQA7kxxg2aVjo7Oml83bUWk4UtaQKYMEY74mygG/JV09g1DVMAPAyjaaMFamDSjortKarMQ3ET5tj2DggQBsWQNzsr3iZkmijab8JLwzA2+I1q63S68OaW5uaR5iMR8zZCTh/fWWYqa1AP64XeGHp+RLGfbp/eToNfkQWu7fH2QtDMOeLe5VmIV9pOFHnySszoR/epMd3sdDLVgmz4qbrMTBWD+5rxWdYS2glmRXl7IIQHrdBTRMll7S6ks5prqKFTwfPvZVrTnzD83a39wl2jBJhOQLjmSfSwP9H0YFNb/NRaDbSDS7BPuAlotZsaPZIN95tu+t9wmFwdxcVG/9q/Vu</ds:X509Certificate></ds:X509Data></ds:KeyInfo>"
-
 
 negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => m (IdP, SAML.AuthnRequest)
