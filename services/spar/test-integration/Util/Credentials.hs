@@ -22,9 +22,21 @@ module Util.Credentials where
 import Crypto.PubKey.RSA.Types
 import Data.Either
 import Data.X509 as X509
+import GHC.Stack
 import Prelude hiding (head)
+import SAML2.WebSSO as SAML
+import Spar.Types
 import Text.XML.DSig as SAML
+import URI.ByteString.QQ
 
+
+sampleIdP :: HasCallStack => NewIdP
+sampleIdP = NewIdP
+  { _nidpMetadata        = [uri|http://idp.net/meta|]
+  , _nidpIssuer          = SAML.Issuer [uri|http://idp.net/|]
+  , _nidpRequestUri      = [uri|http://idp.net/sso/request|]
+  , _nidpPublicKey       = sampleIdPCert
+  }
 
 sampleIdPPrivkey :: SAML.SignPrivCreds
 sampleIdPPubkey :: SAML.SignCreds

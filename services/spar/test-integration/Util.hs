@@ -82,7 +82,6 @@ import Spar.Types
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, xit, pending, pendingWith)
 import URI.ByteString
-import URI.ByteString.QQ
 import Util.Credentials
 import Util.MockIdP
 import Util.Options
@@ -329,14 +328,6 @@ createTestIdP' = do
   liftIO . runHttpT (env ^. teMgr) $ do
     (uid, tid) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
     (uid, tid,) <$> callIdpCreate (env ^. teSpar) (Just uid) sampleIdP
-
-sampleIdP :: HasCallStack => NewIdP
-sampleIdP = NewIdP
-  { _nidpMetadata        = [uri|http://idp.net/meta|]
-  , _nidpIssuer          = SAML.Issuer [uri|http://idp.net/|]
-  , _nidpRequestUri      = [uri|http://idp.net/sso/request|]
-  , _nidpPublicKey       = sampleIdPCert
-  }
 
 negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => m (IdP, SAML.AuthnRequest)
