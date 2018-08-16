@@ -244,7 +244,9 @@ validateNewIdP newidp = if True then pure () else do  -- TODO: validation breaks
     <- fetch (newidp ^. nidpMetadata) (method GET . expect2xx)
   metaBody :: LBS
     <- maybe (throwSpar $ SparNewIdPBadMetaUrl "No body in response.") pure $ responseBody metaResp
-  when (isLeft $ SAML.verifyRoot (newidp ^. nidpPublicKey) metaBody) $ do
+  when (isLeft $ do
+           creds <- SAML.certToCreds $ newidp ^. nidpPublicKey
+           SAML.verifyRoot creds metaBody) $ do
     throwSpar SparNewIdPBadMetaSig
   meta :: SAML.IdPDesc
     <- either (throwSpar . SparNewIdPBadMetaUrl . cs) pure $ do
