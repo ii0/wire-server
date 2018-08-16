@@ -72,7 +72,7 @@ spec = do
           head ((env ^. teSpar) . path ("/sso/initiate-login/" <> uuid))
             `shouldRespondWith` ((== 404) . statusCode)
 
-      context "HEAD known IdP" $ do
+      context "known IdP" $ do
         it "responds with 200" $ do
           env <- ask
           (_, _, cs . UUID.toText . fromIdPId -> idp) <- createTestIdP
