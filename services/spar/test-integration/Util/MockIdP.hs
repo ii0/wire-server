@@ -29,7 +29,6 @@ import Lens.Micro
 import Network.HTTP.Types as HTTP
 import Network.Wai
 import SAML2.WebSSO
-import Spar.Types
 import Text.Hamlet.XML (xml)
 import Text.XML
 import Text.XML.DSig
@@ -71,7 +70,7 @@ serveMetaAndResp metafile respstatus req cont = case pathInfo req of
 newtype SignedAuthnResponse = SignedAuthnResponse Document
   deriving (Eq, Show)
 
-mkAuthnResponse :: HasCallStack => IdP -> AuthnRequest -> Bool -> IO SignedAuthnResponse
+mkAuthnResponse :: HasCallStack => IdPConfig a -> AuthnRequest -> Bool -> IO SignedAuthnResponse
 mkAuthnResponse idp authnreq grantAccess = do
   assertionUuid <- UUID.toText <$> UUID.nextRandom
   respUuid      <- UUID.toText <$> UUID.nextRandom
@@ -125,11 +124,11 @@ mkAuthnResponse idp authnreq grantAccess = do
             Destination="#{destination}"
             InResponseTo="#{inResponseTo}"
             IssueInstant="#{issueInstant}">
-              <Issuer>
-                  #{issuer}
               <samlp:Status>
                   <samlp:StatusCode Value="#{status}">
-            ^{assertion}
+              <Issuer>
+                  #{issuer}
+              ^{assertion}
         |]
 
   pure . SignedAuthnResponse $ mkDocument authnResponse
