@@ -72,6 +72,7 @@ import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID (nextRandom)
 import GHC.Stack (HasCallStack)
+import Network.HTTP.Client.MultipartFormData
 import Lens.Micro
 import Prelude hiding (head)
 import SAML2.WebSSO.Config
@@ -348,11 +349,9 @@ submitAuthnResponse :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                     => SignedAuthnResponse -> m ResponseLBS
 submitAuthnResponse (SignedAuthnResponse authnresp) = do
   env <- ask
-  call $ post
-    ( (env ^. teSpar)
-    . path "/sso/finalize-login"
-    . lbytes (XML.renderLBS XML.def authnresp)
-    )
+  req :: Request
+    <- formDataBody [partLBS "SAMLResponse" . EL.encode . XML.renderLBS XML.def $ authnresp] empty
+  call $ post' req ((env ^. teSpar) . path "/sso/finalize-login")
 
 
 -- TODO: move this to /lib/bilge?
