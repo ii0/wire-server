@@ -101,7 +101,8 @@ spec = do
     describe "/sso/finalize-login" $ do
       context "access denied" $ do
         it "responds with a very peculiar 'forbidden' HTTP response" $ do
-          authnresp <- (\(idp, req) -> mkAuthnResponse idp req True) <$> negotiateAuthnRequest
+          (idp, authnreq) <- negotiateAuthnRequest
+          authnresp <- liftIO $ mkAuthnResponse idp authnreq True
           resp  <- submitAuthnResponse authnresp
           liftIO $ do
             statusCode resp

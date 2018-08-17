@@ -345,13 +345,13 @@ negotiateAuthnRequest = do
 
 
 submitAuthnResponse :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
-                    => SAML.AuthnResponse -> m ResponseLBS
-submitAuthnResponse authnresp = do
+                    => SignedAuthnResponse -> m ResponseLBS
+submitAuthnResponse (SignedAuthnResponse authnresp) = do
   env <- ask
   call $ post
     ( (env ^. teSpar)
     . path "/sso/finalize-login"
-    . (lbytes . cs . SAML.encode $ authnresp)
+    . lbytes (XML.renderLBS XML.def authnresp)
     )
 
 

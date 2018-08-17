@@ -109,3 +109,4 @@ executables:
       - spar
       - wai
       - xml-conduit
+      - xml-hamlet
