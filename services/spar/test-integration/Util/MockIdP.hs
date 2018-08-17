@@ -69,12 +69,23 @@ serveMetaAndResp metafile respstatus req cont = case pathInfo req of
 -- pure functions in lieu of a mock idp (faster & easier for testing)
 
 newtype SignedAuthnResponse = SignedAuthnResponse Document
+  deriving (Eq, Show)
 
 mkAuthnResponse :: HasCallStack => IdP -> AuthnRequest -> Bool -> IO SignedAuthnResponse
 mkAuthnResponse idp authnreq grantAccess = do
   assertionUuid <- UUID.toText <$> UUID.nextRandom
-  issueInstant <- renderTime . Time <$> getCurrentTime
-  let issuer = idp ^. idpIssuer . fromIssuer . to renderURI
+  respUuid      <- UUID.toText <$> UUID.nextRandom
+  now           <- Time <$> getCurrentTime
+
+  let issueInstant    = renderTime now
+      expires         = renderTime $ 3600 `addTime` now
+      issuer    :: ST = idp ^. idpIssuer . fromIssuer . to renderURI
+      recipient :: ST = authnreq ^. rqIssuer . fromIssuer . to renderURI
+      destination     = recipient
+      inResponseTo    = renderID $ authnreq ^. rqID
+      status
+        | grantAccess = "urn:oasis:names:tc:SAML:2.0:status:Success"
+        | otherwise   = "urn:oasis:names:tc:SAML:2.0:status:AuthnFailed"
 
   assertion :: [Node]
     <- signElement
@@ -91,25 +102,18 @@ mkAuthnResponse idp authnreq grantAccess = do
                         E3hQDDZoObpyTDplO8Ax8uC8ObcQmREdfps3TMpaI84
                     <SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
                         <SubjectConfirmationData
-                          InResponseTo="id05873dd012c44e6db0bd59f5aa2e6a0a"
-                          NotOnOrAfter="2018-04-13T06:38:02.743Z"
-                          Recipient="https://zb2.zerobuzz.net:60443/"/>
-                <Conditions NotBefore="2018-04-13T06:28:02.743Z" NotOnOrAfter="2018-04-13T07:28:02.743Z">
+                          InResponseTo="#{inResponseTo}"
+                          NotOnOrAfter="#{expires}"
+                          Recipient="#{recipient}">
+                <Conditions NotBefore="#{issueInstant}" NotOnOrAfter="#{expires}">
                     <AudienceRestriction>
                         <Audience>
-                            https://zb2.zerobuzz.net:60443/authresp
-                <AuthnStatement AuthnInstant="2018-03-27T06:23:57.851Z" SessionIndex="_e9ae1025-bc03-4b5a-943c-c9fcb8730b21">
+                            #{recipient}
+                <AuthnStatement AuthnInstant="#{issueInstant}" SessionIndex="_e9ae1025-bc03-4b5a-943c-c9fcb8730b21">
                     <AuthnContext>
                         <AuthnContextClassRef>
                             urn:oasis:names:tc:SAML:2.0:ac:classes:Password
       |]
-
-  respUuid <- UUID.toText <$> UUID.nextRandom
-  let destination = "https://zb2.zerobuzz.net:60443/"  -- TODO
-      inResponseTo = renderID $ authnreq ^. rqID
-      status = if grantAccess
-        then "urn:oasis:names:tc:SAML:2.0:status:Success"
-        else "urn:oasis:names:tc:SAML:2.0:status:AuthnFailed"
 
   let authnResponse :: Element
       [NodeElement authnResponse] =
@@ -124,7 +128,7 @@ mkAuthnResponse idp authnreq grantAccess = do
               <Issuer>
                   #{issuer}
               <samlp:Status>
-                  <samlp:StatusCode Value="#{status}"/>
+                  <samlp:StatusCode Value="#{status}">
             ^{assertion}
         |]
 
@@ -137,7 +141,7 @@ signElement [NodeElement el] = do
       docToNodes (Document _ el' _) = [NodeElement el']
   eNodes :: Either String [Node]
     <- runExceptT . fmap docToNodes . signRoot sampleIdPPrivkey . mkDocument $ el
-  either (throwIO . ErrorCall) pure eNodes
+  either error pure eNodes
 signElement bad = error $ show bad
 
 -- use this only for the integration tests in this service.
