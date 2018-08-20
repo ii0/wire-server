@@ -23,12 +23,12 @@ import Data.Time
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Lens.Micro
+import SAML2.WebSSO.Test.Credentials (sampleIdP)
 import Spar.API
 import Spar.API.Instances ()
 import Spar.API.Test (IntegrationTests)
 import Spar.Data as Data
 import Spar.Options as Options
-import Spar.Types
 import URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util
@@ -327,7 +327,7 @@ prepareAccessVerdictCore :: HasCallStack
 prepareAccessVerdictCore isGranted mkAuthnReq = do
   (uid, _, idpid) <- createTestIdP
   env <- ask
-  let tenant  = sampleIdP ^. nidpIssuer
+  let tenant  = sampleIdP ^. SAML.nidpIssuer
       subject = SAML.opaqueNameID "blee"
       uref    = SAML.UserRef tenant subject
   call $ runInsertUser env uref uid

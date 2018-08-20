@@ -41,10 +41,10 @@ import Data.String
 import Data.String.Conversions
 import GHC.Generics (Generic)
 import Lens.Micro.TH
-import SAML2.WebSSO.Config.TH (deriveJSONOptions)
+import SAML2.WebSSO as SAML
+import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
 import Spar.Options as Options
-import Spar.Types
 import Util.Options
 
 import qualified Data.Aeson as Aeson
@@ -60,7 +60,7 @@ data TestEnv = TestEnv
   , _teBrig    :: BrigReq
   , _teGalley  :: GalleyReq
   , _teSpar    :: SparReq
-  , _teNewIdp  :: NewIdP
+  , _teNewIdp  :: SAML.NewIdP
   , _teMockIdp :: Endpoint
   , _teOpts    :: Opts
   , _teTstOpts :: IntegrationConfig
@@ -68,13 +68,13 @@ data TestEnv = TestEnv
 
 type Select = TestEnv -> (Request -> Request)
 
-type ResponseLBS = Response (Maybe LBS)
+type ResponseLBS = Bilge.Response (Maybe LBS)
 
 data IntegrationConfig = IntegrationConfig
   { cfgBrig    :: Endpoint
   , cfgGalley  :: Endpoint
   , cfgSpar    :: Endpoint
-  , cfgNewIdp  :: NewIdP
+  , cfgNewIdp  :: SAML.NewIdP
   , cfgMockIdp :: Endpoint
   } deriving (Show, Generic)
 

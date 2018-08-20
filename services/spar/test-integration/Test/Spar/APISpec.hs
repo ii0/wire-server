@@ -24,6 +24,7 @@ import Galley.Types.Teams as Galley
 import Lens.Micro
 import Prelude hiding (head)
 import SAML2.WebSSO as SAML
+import SAML2.WebSSO.Test.Credentials
 import Spar.Types
 import Util
 

@@ -21,20 +21,20 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Data.String
 import Data.String.Conversions
+import Data.Time (getCurrentTime)
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
-import Data.Time (getCurrentTime)
 import GHC.Stack
 import Lens.Micro
 import Network.HTTP.Types as HTTP
 import Network.Wai
 import SAML2.WebSSO
+import SAML2.WebSSO.Test.Credentials
 import Text.Hamlet.XML (xml)
 import Text.XML
 import Text.XML.DSig
 import Text.XML.Util
 import URI.ByteString
-import Util.Credentials
 import Util.Options
 import Util.Types
 

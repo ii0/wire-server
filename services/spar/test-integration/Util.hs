@@ -34,10 +34,6 @@ module Util
   , call
   , ping
   , createTestIdP
-  , sampleIdP
-  , sampleIdPCert
-  , sampleIdPPrivkey
-  , sampleIdPCertWrong
   , negotiateAuthnRequest
   , submitAuthnResponse
   , responseJSON
@@ -75,7 +71,8 @@ import GHC.Stack (HasCallStack)
 import Network.HTTP.Client.MultipartFormData
 import Lens.Micro
 import Prelude hiding (head)
-import SAML2.WebSSO.Config
+import SAML2.WebSSO
+import SAML2.WebSSO.Test.Credentials
 import Spar.API ()
 import Spar.Options as Options
 import Spar.Run
@@ -83,7 +80,6 @@ import Spar.Types
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, xit, pending, pendingWith)
 import URI.ByteString
-import Util.Credentials
 import Util.MockIdP
 import Util.Options
 import Util.Types
@@ -134,7 +130,7 @@ createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> Galle
 createUserWithTeam brg gly = do
     e <- randomEmail
     n <- UUID.toString <$> liftIO UUID.nextRandom
-    let p = RequestBodyLBS . encode $ object
+    let p = RequestBodyLBS . Aeson.encode $ object
             [ "name"            .= n
             , "email"           .= Brig.fromEmail e
             , "password"        .= defPassword
@@ -175,7 +171,7 @@ addTeamMember galleyreq tid mem =
                 . paths ["i", "teams", toByteString' tid, "members"]
                 . contentJson
                 . expect2xx
-                . lbytes (encode mem)
+                . lbytes (Aeson.encode mem)
                 )
 
 createRandomPhoneUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m (UserId, Brig.Phone)
@@ -184,7 +180,7 @@ createRandomPhoneUser brig_ = do
     let uid = Brig.userId usr
     phn <- liftIO randomPhone
     -- update phone
-    let phoneUpdate = RequestBodyLBS . encode $ Brig.PhoneUpdate phn
+    let phoneUpdate = RequestBodyLBS . Aeson.encode $ Brig.PhoneUpdate phn
     put (brig_ . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate) !!!
         (const 202 === statusCode)
     -- activate
@@ -252,7 +248,7 @@ postUser :: (HasCallStack, MonadIO m, MonadHttp m)
          => ST -> Maybe ST -> Maybe Brig.UserSSOId -> Maybe TeamId -> BrigReq -> m ResponseLBS
 postUser name email ssoid teamid brig_ = do
     email' <- maybe (pure Nothing) (fmap (Just . Brig.fromEmail) . mkEmailRandomLocalSuffix) email
-    let p = RequestBodyLBS . encode $ object
+    let p = RequestBodyLBS . Aeson.encode $ object
             [ "name"            .= name
             , "email"           .= email'
             , "password"        .= defPassword
@@ -414,13 +410,13 @@ callIdpGet' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId
 callIdpGet' sparreq_ muid idpid = do
   get $ sparreq_ . maybe id zUser muid . path ("/identity-providers/" <> cs (SAML.idPIdToST idpid))
 
-callIdpCreate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> NewIdP -> m IdP
+callIdpCreate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.NewIdP -> m IdP
 callIdpCreate sparreq_ muid newidp = do
   resp <- callIdpCreate' (sparreq_ . expect2xx) muid newidp
   either (liftIO . throwIO . ErrorCall . show) pure
     $ responseJSON @IdP resp
 
-callIdpCreate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> NewIdP -> m ResponseLBS
+callIdpCreate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.NewIdP -> m ResponseLBS
 callIdpCreate' sparreq_ muid newidp = do
   post $ sparreq_ . maybe id zUser muid . path "/identity-providers/" . json newidp
 
