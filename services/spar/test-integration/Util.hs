@@ -324,9 +324,12 @@ createTestIdP = do
 createTestIdP' :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (UserId, TeamId, IdP)
 createTestIdP' = do
   env <- ask
+  let Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp
+      mkurl = SAML.unsafeParseURI . (("https://" <> ephost <> ":" <> epport) <>)
+      myidp = sampleIdP (mkurl "meta") (mkurl "resp")
   liftIO . runHttpT (env ^. teMgr) $ do
     (uid, tid) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-    (uid, tid,) <$> callIdpCreate (env ^. teSpar) (Just uid) sampleIdP
+    (uid, tid,) <$> callIdpCreate (env ^. teSpar) (Just uid) myidp
 
 negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)

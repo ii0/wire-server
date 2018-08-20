@@ -21,6 +21,7 @@ import Data.Maybe
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
 import Galley.Types.Teams as Galley
+import GHC.Stack
 import Lens.Micro
 import Prelude hiding (head)
 import SAML2.WebSSO as SAML
@@ -262,6 +263,7 @@ spec = do
           createIdpMockErr modnewidp metafile respstatus = do
             pending
             env <- ask
+            metadata <- liftIO . LBS.readFile $ "test-integration/resources/" <> metafile
             metaurl <- endpointToURL (env ^. teMockIdp) "meta"
             respurl <- endpointToURL (env ^. teMockIdp) "resp"
             let newidp = (env ^. teNewIdp)
@@ -269,7 +271,7 @@ spec = do
                   & nidpRequestUri .~ respurl
                   & modnewidp
             (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-            withMockIdP (serveMetaAndResp metafile respstatus) $ do
+            withMockIdP (serveMetaAndResp metadata respstatus) $ do
               callIdpCreate' (env ^. teSpar) (Just uid) newidp
                 `shouldRespondWith` checkErr (== 400) "client-error"
 
