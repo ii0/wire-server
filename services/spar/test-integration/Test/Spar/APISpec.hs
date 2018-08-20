@@ -25,6 +25,7 @@ import Lens.Micro
 import Prelude hiding (head)
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Credentials
+import SAML2.WebSSO.Test.MockResponse
 import Spar.Types
 import Util
 
@@ -102,8 +103,8 @@ spec = do
     describe "/sso/finalize-login" $ do
       context "access denied" $ do
         it "responds with a very peculiar 'forbidden' HTTP response" $ do
-          (idp, authnreq) <- negotiateAuthnRequest
-          authnresp <- liftIO $ mkAuthnResponse idp authnreq True
+          (idp, privcreds, authnreq) <- negotiateAuthnRequest
+          authnresp <- liftIO $ mkAuthnResponse privcreds idp authnreq True
           resp  <- submitAuthnResponse authnresp
           liftIO $ do
             statusCode resp

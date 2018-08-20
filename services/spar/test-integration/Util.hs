@@ -73,6 +73,7 @@ import Lens.Micro
 import Prelude hiding (head)
 import SAML2.WebSSO
 import SAML2.WebSSO.Test.Credentials
+import SAML2.WebSSO.Test.MockResponse
 import Spar.API ()
 import Spar.Options as Options
 import Spar.Run
@@ -95,6 +96,7 @@ import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.Util as SAML
+import qualified Text.XML.DSig as SAML
 
 
 mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
@@ -327,7 +329,7 @@ createTestIdP' = do
     (uid, tid,) <$> callIdpCreate (env ^. teSpar) (Just uid) sampleIdP
 
 negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
-                      => m (IdP, SAML.AuthnRequest)
+                      => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)
 negotiateAuthnRequest = do
   env <- ask
   (_, _, idp) <- createTestIdP'
@@ -338,7 +340,7 @@ negotiateAuthnRequest = do
            . expect2xx
            )
   (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp
-  pure (idp, authnreq)
+  pure (idp, sampleIdPPrivkey, authnreq)
 
 
 submitAuthnResponse :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
