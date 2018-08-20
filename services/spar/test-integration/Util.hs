@@ -33,7 +33,7 @@ module Util
   , shouldRespondWith
   , call
   , ping
-  , createTestIdP
+  , createTestIdP, createTestIdP'
   , negotiateAuthnRequest
   , submitAuthnResponse
   , responseJSON
@@ -325,8 +325,8 @@ createTestIdP' :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (UserId,
 createTestIdP' = do
   env <- ask
   let Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp
-      mkurl = SAML.unsafeParseURI . (("https://" <> ephost <> ":" <> epport) <>)
-      myidp = sampleIdP (mkurl "meta") (mkurl "resp")
+      mkurl = SAML.parseURI' . (("https://" <> ephost <> ":" <> epport) <>)
+      myidp = either (error . show) id $ sampleIdP <$> mkurl "/meta" <*> mkurl "/resp"
   liftIO . runHttpT (env ^. teMgr) $ do
     (uid, tid) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
     (uid, tid,) <$> callIdpCreate (env ^. teSpar) (Just uid) myidp
