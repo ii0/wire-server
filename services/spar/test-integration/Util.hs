@@ -18,8 +18,8 @@
 -- FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
 -- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
-  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdp, teMockIdp, teOpts, teTstOpts
-  , Select, mkEnv, it, pending, pendingWith
+  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdP, teIdPEndpoint, teIdP, teIdPHandle, teOpts, teTstOpts
+  , Select, mkEnv, destroyEnv, it, pending, pendingWith
   , IntegrationConfig(..)
   , BrigReq
   , GalleyReq
@@ -88,15 +88,17 @@ import Util.Types
 import qualified Brig.Types.Activation as Brig
 import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
+import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
 import qualified Galley.Types.Teams as Galley
+import qualified Network.Wai.Handler.Warp as Warp
 import qualified SAML2.WebSSO as SAML
 import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
-import qualified Text.XML.Util as SAML
 import qualified Text.XML.DSig as SAML
+import qualified Text.XML.Util as SAML
 
 
 mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
@@ -110,10 +112,20 @@ mkEnv _teTstOpts _teOpts = do
       _teBrig    = mkreq cfgBrig
       _teGalley  = mkreq cfgGalley
       _teSpar    = mkreq cfgSpar
-      _teNewIdp  = cfgNewIdp _teTstOpts
-      _teMockIdp = cfgMockIdp _teTstOpts
 
-  pure $ TestEnv {..}
+      _teNewIdP  = cfgNewIdp _teTstOpts
+      _teIdPEndpoint = cfgMockIdp _teTstOpts
+
+  (_teUserId, _teTeamId, _teIdP) <- createTestIdPFrom _teNewIdP _teMgr _teBrig _teGalley _teSpar
+  _teIdPHandle <- let app = serveSampleIdP _teIdP
+                      srv = Warp.runSettings (endpointToSettings _teIdPEndpoint) app
+                  in Async.async srv
+
+  pure TestEnv {..}
+
+destroyEnv :: HasCallStack => TestEnv -> IO ()
+destroyEnv = Async.cancel . (^. teIdPHandle)
+
 
 it :: (HasCallStack, m ~ IO)
        -- or, more generally:
@@ -324,12 +336,17 @@ createTestIdP = do
 createTestIdP' :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (UserId, TeamId, IdP)
 createTestIdP' = do
   env <- ask
-  let Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp
+  let sampleNewIdP = either (error . show) id $ sampleIdP <$> mkurl "/meta" <*> mkurl "/resp"
+      Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp
       mkurl = SAML.parseURI' . (("https://" <> ephost <> ":" <> epport) <>)
-      myidp = either (error . show) id $ sampleIdP <$> mkurl "/meta" <*> mkurl "/resp"
-  liftIO . runHttpT (env ^. teMgr) $ do
-    (uid, tid) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-    (uid, tid,) <$> callIdpCreate (env ^. teSpar) (Just uid) myidp
+  createTestIdPFrom sampleNewIdP (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
+
+createTestIdPFrom :: (HasCallStack, MonadIO m)
+                  => NewIdP -> Manager -> BrigReq -> GalleyReq -> SparReq -> m (UserId, TeamId, IdP)
+createTestIdPFrom newidp mgr brig galley spar = do
+  liftIO . runHttpT mgr $ do
+    (uid, tid) <- createUserWithTeam brig galley
+    (uid, tid,) <$> callIdpCreate spar (Just uid) newidp
 
 negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)

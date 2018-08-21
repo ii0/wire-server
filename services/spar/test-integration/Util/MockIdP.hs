@@ -46,7 +46,7 @@ withMockIdP
     :: forall a m. (MonadIO m, MonadMask m, MonadReader TestEnv m)
     => Application -> m a -> m a
 withMockIdP app go = do
-  defs <- asks (endpointToSettings . (^. teMockIdp))
+  defs <- asks (endpointToSettings . (^. teIdPEndpoint))
   srv <- liftIO . Async.async . Warp.runSettings defs $ app
   go `Control.Monad.Catch.finally` liftIO (Async.cancel srv)
 
@@ -79,13 +79,12 @@ sampleIdPMetadata idp = nodesToDoc [xml|
             <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="#{authnUrl}"/>
   |]
   where
-    -- TODO customize these.
-    descID      = "_e3a565aa-1392-4446-a4d6-3771453808f0"
-    entityID    = renderURI . _fromIssuer $ idp ^. idpIssuer
+    descID = idp ^. idpId . to fromIdPId . to UUID.toText
+    entityID = renderURI . _fromIssuer $ idp ^. idpIssuer
+    authnUrl = idp ^. idpRequestUri . to renderURI
     signingCert = case parseLBS def . cs . renderKeyInfo $ idp ^. idpPublicKey of
       Right (Document _ sc _) -> [NodeElement sc]
       bad -> error $ show bad
-    authnUrl    = "https://login.microsoftonline.com/682febe8-021b-4fde-ac09-e60085f05181/saml2"
 
 
 -- auxiliaries

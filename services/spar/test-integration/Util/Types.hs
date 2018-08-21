@@ -21,8 +21,12 @@ module Util.Types
   , teBrig
   , teGalley
   , teSpar
-  , teNewIdp
-  , teMockIdp
+  , teNewIdP
+  , teIdPEndpoint
+  , teUserId
+  , teTeamId
+  , teIdP
+  , teIdPHandle
   , teOpts
   , teTstOpts
   , Select
@@ -37,6 +41,7 @@ import Control.Exception
 import Control.Monad
 import Data.Aeson
 import Data.Aeson.TH
+import Data.Id
 import Data.String
 import Data.String.Conversions
 import GHC.Generics (Generic)
@@ -44,9 +49,11 @@ import Lens.Micro.TH
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
+import Spar.Types
 import Spar.Options as Options
 import Util.Options
 
+import qualified Control.Concurrent.Async as Async
 import qualified Data.Aeson as Aeson
 
 
@@ -55,15 +62,19 @@ type GalleyReq = Request -> Request
 type SparReq   = Request -> Request
 
 data TestEnv = TestEnv
-  { _teMgr     :: Manager
-  , _teCql     :: Cas.ClientState
-  , _teBrig    :: BrigReq
-  , _teGalley  :: GalleyReq
-  , _teSpar    :: SparReq
-  , _teNewIdp  :: SAML.NewIdP
-  , _teMockIdp :: Endpoint
-  , _teOpts    :: Opts
-  , _teTstOpts :: IntegrationConfig
+  { _teMgr         :: Manager
+  , _teCql         :: Cas.ClientState
+  , _teBrig        :: BrigReq
+  , _teGalley      :: GalleyReq
+  , _teSpar        :: SparReq
+  , _teNewIdP      :: SAML.NewIdP
+  , _teIdPEndpoint :: Endpoint
+  , _teUserId      :: UserId
+  , _teTeamId      :: TeamId
+  , _teIdP         :: IdP
+  , _teIdPHandle   :: Async.Async ()
+  , _teOpts        :: Opts
+  , _teTstOpts     :: IntegrationConfig
   }
 
 type Select = TestEnv -> (Request -> Request)

@@ -240,14 +240,14 @@ spec = do
       context "no zuser" $ do
         it "responds with 'client error'" $ do
           env <- ask
-          callIdpCreate' (env ^. teSpar) Nothing (env ^. teNewIdp)
+          callIdpCreate' (env ^. teSpar) Nothing (env ^. teNewIdP)
             `shouldRespondWith` checkErr (== 400) "client-error"
 
       context "zuser has no team" $ do
         it "responds with 'no team member'" $ do
           env <- ask
           (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
-          callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teNewIdp)
+          callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teNewIdP)
             `shouldRespondWith` checkErr (== 403) "no-team-member"
 
       context "zuser is a team member, but not a team owner" $ do
@@ -256,7 +256,7 @@ spec = do
           (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           newmember <- let Just perms = newPermissions mempty mempty
                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
-          callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teNewIdp)
+          callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teNewIdP)
             `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
       let createIdpMockErr :: (NewIdP -> NewIdP) -> FilePath -> HTTP.Status -> ReaderT TestEnv IO ()
@@ -264,9 +264,9 @@ spec = do
             pending
             env <- ask
             metadata <- liftIO . LBS.readFile $ "test-integration/resources/" <> metafile
-            metaurl <- endpointToURL (env ^. teMockIdp) "meta"
-            respurl <- endpointToURL (env ^. teMockIdp) "resp"
-            let newidp = (env ^. teNewIdp)
+            metaurl <- endpointToURL (env ^. teIdPEndpoint) "meta"
+            respurl <- endpointToURL (env ^. teIdPEndpoint) "resp"
+            let newidp = (env ^. teNewIdP)
                   & nidpMetadata   .~ metaurl
                   & nidpRequestUri .~ respurl
                   & modnewidp

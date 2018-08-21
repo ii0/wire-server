@@ -48,7 +48,7 @@ spec = do
   describe "TTL" $ do
     it "works in seconds" $ do
       env <- ask
-      (_, _, idpid) <- createTestIdP
+      let idpid = env ^. teIdP . SAML.idpId
       (_, req) <- call $ callAuthnReq (env ^. teSpar) idpid
 
       let probe :: IO Bool
