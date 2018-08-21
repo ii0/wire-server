@@ -352,7 +352,7 @@ negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)
 negotiateAuthnRequest = do
   env <- ask
-  (_, _, idp) <- createTestIdP UUID.nil
+  let idp = env ^. teIdP
   resp :: ResponseLBS
     <- call $ get
            ( (env ^. teSpar)
