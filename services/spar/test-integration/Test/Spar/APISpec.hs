@@ -320,7 +320,7 @@ spec = do
             check tryowner permsix =
               it ("works: tryowner == " <> show (tryowner, permsix)) $ do
                 env <- ask
-                (owner, tid, _idp) <- createTestIdP
+                (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
                 newmember <- if tryowner
                   then pure undefined
                   else call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid (permses !! permsix)

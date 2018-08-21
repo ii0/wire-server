@@ -329,14 +329,18 @@ ping :: (Request -> Request) -> Http ()
 ping req = void . get $ req . path "/i/status" . expect2xx
 
 
-createTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (UserId, TeamId, IdP)
-createTestIdP = do
+-- | Create new user, team, idp from 'sampleIdP'.  The issuer id can be used to do this several
+-- times without getting the error that this issuer is already used for another team.
+createTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => UUID -> m (UserId, TeamId, IdP)
+createTestIdP issuerid = do
   env <- ask
-  let sampleNewIdP = either (error . show) id $ sampleIdP <$> mkurl "/meta" <*> mkurl "/resp"
+  let sampleNewIdP = sampleIdP (mkurl "/meta") (mkurl "/resp")
+        & nidpIssuer .~ Issuer (mkurl $ "/_" <> UUID.toText issuerid)
       Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp
-      mkurl = SAML.parseURI' . (("http://" <> ephost <> ":" <> epport) <>)
+      mkurl = either (error . show) id . SAML.parseURI' . (("http://" <> ephost <> ":" <> epport) <>)
   createTestIdPFrom sampleNewIdP (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
 
+-- | Create new user, team, idp from given 'NewIdP'.
 createTestIdPFrom :: (HasCallStack, MonadIO m)
                   => NewIdP -> Manager -> BrigReq -> GalleyReq -> SparReq -> m (UserId, TeamId, IdP)
 createTestIdPFrom newidp mgr brig galley spar = do
@@ -348,7 +352,7 @@ negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)
 negotiateAuthnRequest = do
   env <- ask
-  (_, _, idp) <- createTestIdP
+  (_, _, idp) <- createTestIdP UUID.nil
   resp :: ResponseLBS
     <- call $ get
            ( (env ^. teSpar)
