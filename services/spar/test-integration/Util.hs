@@ -33,7 +33,7 @@ module Util
   , shouldRespondWith
   , call
   , ping
-  , createTestIdP, createTestIdP'
+  , createTestIdP
   , negotiateAuthnRequest
   , submitAuthnResponse
   , responseJSON
@@ -329,17 +329,12 @@ ping :: (Request -> Request) -> Http ()
 ping req = void . get $ req . path "/i/status" . expect2xx
 
 
-createTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (UserId, TeamId, SAML.IdPId)
+createTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (UserId, TeamId, IdP)
 createTestIdP = do
-  (u, t, i) <- createTestIdP'
-  pure (u, t, i ^. SAML.idpId)
-
-createTestIdP' :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (UserId, TeamId, IdP)
-createTestIdP' = do
   env <- ask
   let sampleNewIdP = either (error . show) id $ sampleIdP <$> mkurl "/meta" <*> mkurl "/resp"
       Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp
-      mkurl = SAML.parseURI' . (("https://" <> ephost <> ":" <> epport) <>)
+      mkurl = SAML.parseURI' . (("http://" <> ephost <> ":" <> epport) <>)
   createTestIdPFrom sampleNewIdP (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
 
 createTestIdPFrom :: (HasCallStack, MonadIO m)
@@ -353,7 +348,7 @@ negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)
 negotiateAuthnRequest = do
   env <- ask
-  (_, _, idp) <- createTestIdP'
+  (_, _, idp) <- createTestIdP
   resp :: ResponseLBS
     <- call $ get
            ( (env ^. teSpar)

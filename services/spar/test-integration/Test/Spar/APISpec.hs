@@ -78,7 +78,7 @@ spec = do
       context "known IdP" $ do
         it "responds with 200" $ do
           env <- ask
-          (_, _, cs . UUID.toText . fromIdPId -> idp) <- createTestIdP
+          let idp = cs . UUID.toText . fromIdPId $ env ^. teIdP . idpId
           head ((env ^. teSpar) . path ("/sso/initiate-login/" <> idp) . expect2xx)
             `shouldRespondWith`  ((== 200) . statusCode)
 
@@ -93,7 +93,7 @@ spec = do
       context "known IdP" $ do
         it "responds with request" $ do
           env <- ask
-          (_, _, cs . UUID.toText . fromIdPId -> idp) <- createTestIdP
+          let idp = cs . UUID.toText . fromIdPId $ env ^. teIdP . idpId
           get ((env ^. teSpar) . path ("/sso/initiate-login/" <> idp) . expect2xx)
             `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                   [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
@@ -156,33 +156,34 @@ spec = do
           context "no zuser" $ do
             it "responds with 'client error'" $ do
               env <- ask
-              (_, _, idp) <- createTestIdP
-              whichone (env ^. teSpar) Nothing idp
+              let idpid = env ^. teIdP . idpId
+              whichone (env ^. teSpar) Nothing idpid
                 `shouldRespondWith` checkErr (== 400) "client-error"
 
           context "zuser has no team" $ do
             it "responds with 'no team member'" $ do
               env <- ask
-              (_, _, idp) <- createTestIdP
+              let idpid = env ^. teIdP . idpId
               (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
-              whichone (env ^. teSpar) (Just uid) idp
+              whichone (env ^. teSpar) (Just uid) idpid
                 `shouldRespondWith` checkErr (== 403) "no-team-member"
 
           context "zuser has wrong team" $ do
             it "responds with 'no team member'" $ do
               env <- ask
-              (_, _, idp) <- createTestIdP
+              let idpid = env ^. teIdP . idpId
               (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-              whichone (env ^. teSpar) (Just uid) idp
+              whichone (env ^. teSpar) (Just uid) idpid
                 `shouldRespondWith` checkErr (== 403) "no-team-member"
 
           context "zuser is a team member, but not a team owner" $ do
             it "responds with 'insufficient-permissions' and a helpful message" $ do
               env <- ask
-              (_owner, tid, idp) <- createTestIdP
+              let idpid = env ^. teIdP . idpId
+                  teamid = env ^. teTeamId
               newmember <- let Just perms = newPermissions mempty mempty
-                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
-              whichone (env ^. teSpar) (Just newmember) idp
+                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
+              whichone (env ^. teSpar) (Just newmember) idpid
                 `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
     describe "GET /identity-providers/:idp" $ do
@@ -191,8 +192,9 @@ spec = do
       context "known IdP, client is team owner" $ do
         it "responds with 2xx and IdP" $ do
           env <- ask
-          (uid, _, idp) <- createTestIdP
-          callIdpGet' (env ^. teSpar) (Just uid) idp
+          let idpid = env ^. teIdP . idpId
+              userid = env ^. teUserId
+          callIdpGet' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` (\resp -> statusCode resp == 200 && isRight (responseJSON @IdP resp))
 
     describe "GET /identity-providers" $ do
@@ -215,10 +217,11 @@ spec = do
       context "known IdP, client is team owner" $ do
         it "responds with 2xx and removes IdP" $ do
           env <- ask
-          (uid, _, idp) <- createTestIdP
-          callIdpDelete' (env ^. teSpar) (Just uid) idp
+          let idpid = env ^. teIdP . idpId
+              userid = env ^. teUserId
+          callIdpDelete' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` \resp -> statusCode resp < 300
-          callIdpGet' (env ^. teSpar) (Just uid) idp
+          callIdpGet' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` checkErr (== 404) "not-found"
 
     describe "PUT /identity-providers/:idp" $ do
