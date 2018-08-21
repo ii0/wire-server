@@ -227,7 +227,7 @@ type MonadValidateIdP m = (MonadHttp m, MonadIO m)
 -- | FUTUREWORK: much of this function could move to the saml2-web-sso package.
 validateNewIdP :: forall m. (HasCallStack, MonadError SparError m, MonadValidateIdP m)
                => SAML.NewIdP -> m ()
-validateNewIdP newidp = if True then pure () else do  -- TODO: validation breaks current integration test suite, so it's disabled.
+validateNewIdP newidp = do
   let uri2req :: URI.URI -> m Request
       uri2req = either (throwSpar . SparNewIdPBadMetaUrl . cs . show) pure
               . Rq.parseRequest . cs . SAML.renderURI
@@ -254,11 +254,6 @@ validateNewIdP newidp = if True then pure () else do  -- TODO: validation breaks
          SAML.parseIdPDesc el
   when (newidp ^. SAML.nidpPublicKey `notElem` meta ^. SAML.edPublicKeys) $
     throwSpar SparNewIdPPubkeyMismatch
-  respResp :: Bilge.Response (Maybe LBS)
-    <- fetch (newidp ^. SAML.nidpRequestUri) (method POST . body "request")
-  when (statusCode respResp >= 400) $ do
-    let msg = (cs . show . responseStatus $ respResp) <> (maybe "" ((": " <>) . cs) $ responseBody respResp)
-    throwSpar $ SparNewIdPBadReqUrl msg
 
 
 -- | Type families to convert spar's 'API' type into an "outside-world-view" API type

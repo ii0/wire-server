@@ -18,7 +18,7 @@
 -- FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
 -- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
-  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdP, teIdPEndpoint, teIdP, teIdPHandle, teOpts, teTstOpts
+  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdP, teIdPEndpoint, teUserId, teTeamId, teIdP, teIdPHandle, teOpts, teTstOpts
   , Select, mkEnv, destroyEnv, it, pending, pendingWith
   , IntegrationConfig(..)
   , BrigReq
@@ -116,10 +116,11 @@ mkEnv _teTstOpts _teOpts = do
       _teNewIdP  = cfgNewIdp _teTstOpts
       _teIdPEndpoint = cfgMockIdp _teTstOpts
 
-  (_teUserId, _teTeamId, _teIdP) <- createTestIdPFrom _teNewIdP _teMgr _teBrig _teGalley _teSpar
-  _teIdPHandle <- let app = serveSampleIdP _teIdP
+  _teIdPHandle <- let app = serveSampleIdP _teNewIdP
                       srv = Warp.runSettings (endpointToSettings _teIdPEndpoint) app
                   in Async.async srv
+
+  (_teUserId, _teTeamId, _teIdP) <- createTestIdPFrom _teNewIdP _teMgr _teBrig _teGalley _teSpar
 
   pure TestEnv {..}
 

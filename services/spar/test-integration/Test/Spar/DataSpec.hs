@@ -324,8 +324,9 @@ requestAccessVerdict :: HasCallStack
                                            , [(SBS, SBS)]                -- query params
                                            )
 requestAccessVerdict isGranted mkAuthnReq = do
-  (uid, _, idp) <- createTestIdP'
   env <- ask
+  let uid = env ^. teUserId
+      idp = env ^. teIdP
   let idpid   = idp ^. SAML.idpId
       tenant  = idp ^. SAML.idpIssuer
       subject = SAML.opaqueNameID "blee"

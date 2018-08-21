@@ -26,7 +26,7 @@ import Lens.Micro
 import Network.HTTP.Types as HTTP
 import Network.Wai
 import SAML2.WebSSO
-import Spar.Types
+import SAML2.WebSSO.Test.Credentials
 import Text.Hamlet.XML
 import Text.XML
 import Text.XML.DSig
@@ -59,16 +59,15 @@ serveMetaAndResp metadata respstatus req cont = case pathInfo req of
   ["resp"] -> cont $ responseLBS respstatus [] ""
   bad      -> error $ show bad
 
-serveSampleIdP :: HasCallStack => IdP -> Application
-serveSampleIdP idp req cont = case pathInfo req of
-  ["meta"] -> cont . responseLBS status200 [] . renderLBS def $ sampleIdPMetadata idp
+serveSampleIdP :: HasCallStack => NewIdP -> Application
+serveSampleIdP newidp req cont = case pathInfo req of
+  ["meta"] -> cont . responseLBS status200 [] . renderLBS def . nodesToDoc =<< sampleIdPMetadata newidp
   ["resp"] -> cont $ responseLBS status400 [] ""
   bad      -> error $ show bad
 
 
--- TODO: sign the root node.
-sampleIdPMetadata :: IdP -> Document
-sampleIdPMetadata idp = nodesToDoc [xml|
+sampleIdPMetadata :: NewIdP -> IO [Node]
+sampleIdPMetadata newidp = signElementIO sampleIdPPrivkey [xml|
     <EntityDescriptor
       ID="#{descID}"
       entityID="#{entityID}"
@@ -76,13 +75,13 @@ sampleIdPMetadata idp = nodesToDoc [xml|
         <IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
             <KeyDescriptor use="signing">
                 ^{signingCert}
-            <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="#{authnUrl}"/>
+            <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="#{authnUrl}">
   |]
   where
-    descID = idp ^. idpId . to fromIdPId . to UUID.toText
-    entityID = renderURI . _fromIssuer $ idp ^. idpIssuer
-    authnUrl = idp ^. idpRequestUri . to renderURI
-    signingCert = case parseLBS def . cs . renderKeyInfo $ idp ^. idpPublicKey of
+    descID = "_0c29ba62-a541-11e8-8042-873ef87bdcba"
+    entityID = renderURI . _fromIssuer $ newidp ^. nidpIssuer
+    authnUrl = newidp ^. nidpRequestUri . to renderURI
+    signingCert = case parseLBS def . cs . renderKeyInfo $ newidp ^. nidpPublicKey of
       Right (Document _ sc _) -> [NodeElement sc]
       bad -> error $ show bad
 
