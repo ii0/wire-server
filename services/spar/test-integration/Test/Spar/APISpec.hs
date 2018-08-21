@@ -106,12 +106,15 @@ spec = do
         it "responds with a very peculiar 'forbidden' HTTP response" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
           authnresp <- liftIO $ mkAuthnResponse privcreds idp authnreq True
-          resp  <- submitAuthnResponse authnresp
+          sparresp <- submitAuthnResponse authnresp
           liftIO $ do
-            statusCode resp
+            statusCode sparresp
               `shouldBe` 200
-            responseBody resp
+            responseBody sparresp
               `shouldBe` Just ""
+
+
+
 
       context "access granted" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
